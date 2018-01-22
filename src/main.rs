@@ -1,3 +1,9 @@
+mod z80;
+use z80::Z80;
+
 fn main() {
-    println!("Hello, world!");
+    let mut z80 = Z80::new();
+
+    z80.hard_reset();
+    z80.run();
 }
