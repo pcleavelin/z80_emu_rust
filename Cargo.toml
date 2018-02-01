@@ -3,4 +3,8 @@ name = "z80_emu_rust"
 version = "0.1.0"
 authors = ["Patrick Cleavelin <patrick@uptrainsoftware.com>"]
 
+[features]
+log-instr = []
+log-all = ["log-instr"]
+
 [dependencies]
