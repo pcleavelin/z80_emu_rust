@@ -119,13 +119,13 @@ impl Cpu {
 
     pub fn do_instruction(&mut self, instr: u32, mmu: &mut Mmu) -> bool {
 
-        println!("pc: 0x{:04X}", self.reg_pc);
+        log!(Log::Debug, "pc: 0x{:04X}", self.reg_pc);
 
         // Mask out only the prefix and opcode
         let (op, delta_ip, is_prefixed) = Opcode::from_halfword((instr>>16) as u16);
 
         if delta_ip > 4 {
-            println!("delta_ip > 4 for opcode {}", op);
+            log!(Log::Debug, "delta_ip > 4 for opcode {}", op);
             return false;
         }
 
@@ -144,9 +144,23 @@ impl Cpu {
                 (instr&0x00_00_00_FF) as u8)
             }
         };
-        println!("imm_lo: 0x{:02X}\nimm_hi: 0x{:02X}\n{}", imm_lo, imm_hi, op);
+        log!(Log::Debug, "imm_lo: 0x{:02X}\nimm_hi: 0x{:02X}\n{}", imm_lo, imm_hi, op);
 
         match op {
+            Opcode::AddHlBc => {
+                let hl = ((self.reg_h as u16) << 8) | (self.reg_l as u16);
+                let bc = ((self.reg_b as u16) << 8) | (self.reg_c as u16);
+                
+                let result = hl.wrapping_add(bc);
+
+                self.reg_h = (result >> 8) as u8;
+                self.reg_l = (result&0xFF) as u8;
+
+                self.reg_f.set_half_carry(result&0x1000 > 0);
+                self.reg_f.set_add_sub(false);
+                self.reg_f.set_carry(result < hl);
+            }
+
             Opcode::AndAN => {
                 self.reg_a = self.reg_a & imm_lo;
 
@@ -216,6 +230,15 @@ impl Cpu {
                 self.reg_f.set_half_carry(self.reg_a&0x20 > 0);
                 self.reg_f.set_add_sub(true);
             }
+            Opcode::DecC => {
+                self.reg_f.set_overflow(self.reg_c == 0x80);
+                self.reg_c = self.reg_c.wrapping_sub(1);
+
+                self.reg_f.set_sign(self.reg_c&0x80 > 0);
+                self.reg_f.set_zero(self.reg_c == 0);
+                self.reg_f.set_half_carry(self.reg_c&0x20 > 0);
+                self.reg_f.set_add_sub(true);
+            }
 
             Opcode::ExAfAfPrime => {
                 let a_prime = self.reg_a_prime;
@@ -270,6 +293,8 @@ impl Cpu {
             Opcode::LdBA => {
                 self.reg_b = self.reg_a;
             }
+            Opcode::LdBB => { }
+            Opcode::LdCC => { }
             Opcode::LdBE => {
                 self.reg_b = self.reg_e;
             }
@@ -283,6 +308,9 @@ impl Cpu {
                 self.reg_h = imm_hi;
                 self.reg_l = imm_lo;
             }
+            Opcode::LdSpNN => {
+                self.reg_sp = (imm_hi as u16) << 8 | (imm_lo as u16);
+            }
 
             Opcode::Rrca => {
                 self.reg_f.set_carry(self.reg_a > 0);
@@ -295,23 +323,24 @@ impl Cpu {
             Opcode::Nop => {}
 
             Opcode::Invalid => {
-                println!("Invalid opcode...crashing");
+                log!(Log::Debug, "Invalid opcode...crashing");
                 return false;
             }
 
             _ => {
-                println!("Unimplemented opcode {}...crashing", op);
+                log!(Log::Debug, "Unimplemented opcode {}...crashing", op);
                 return false;
             }
         }
 
-        println!("A: 0x{:02X}", self.reg_a);
-        println!("B: 0x{:02X}", self.reg_b);
-        println!("C: 0x{:02X}", self.reg_c);
-        println!("D: 0x{:02X}", self.reg_d);
-        println!("E: 0x{:02X}", self.reg_e);
-        println!("H: 0x{:02X}", self.reg_h);
-        println!("L: 0x{:02X}", self.reg_l);
+        log!(Log::Debug, "A: 0x{:02X}", self.reg_a);
+        log!(Log::Debug, "B: 0x{:02X}", self.reg_b);
+        log!(Log::Debug, "C: 0x{:02X}", self.reg_c);
+        log!(Log::Debug, "D: 0x{:02X}", self.reg_d);
+        log!(Log::Debug, "E: 0x{:02X}", self.reg_e);
+        log!(Log::Debug, "H: 0x{:02X}", self.reg_h);
+        log!(Log::Debug, "L: 0x{:02X}", self.reg_l);
+        log!(Log::Debug, "SP: 0x{:02X}", self.reg_sp);
 
         true
     }

@@ -3,8 +3,13 @@ name = "z80_emu_rust"
 version = "0.1.0"
 authors = ["Patrick Cleavelin <patrick@uptrainsoftware.com>"]
 
+[profile.dev]
+opt-level = 3
+
 [features]
 log-instr = []
-log-all = ["log-instr"]
+log-debug = []
+log-all = ["log-instr", "log-debug"]
 
 [dependencies]
+minifb = "0.10.4"

@@ -7,7 +7,7 @@ pub struct Mmu {
 impl Mmu {
     pub fn new() -> Mmu {
         Mmu {
-            ram: [0; MAX_MMU_RAM]
+            ram: [32u8; MAX_MMU_RAM]
         }
     }
 

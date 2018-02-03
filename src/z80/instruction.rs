@@ -2,6 +2,8 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 
 pub enum Opcode {
+    AddHlBc,
+
     AndAN,
 
     OrAC,
@@ -17,6 +19,7 @@ pub enum Opcode {
     Di,
 
     DecA,
+    DecC,
 
     ExAfAfPrime,
 
@@ -32,10 +35,13 @@ pub enum Opcode {
     LdAN,
     LdAIndNN,
     LdBA,
+    LdBB,
     LdBE,
     LdCA,
+    LdCC,
     LdIndNNA,
     LdHlNN,
+    LdSpNN,
 
     Rrca,
 
@@ -46,6 +52,8 @@ pub enum Opcode {
 impl Display for Opcode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
+            &Opcode::AddHlBc => write!(f, "AddHlBc (ADD HL, BC)"),
+
             &Opcode::AndAN => write!(f, "AndAN (AND A, n)"),
 
             &Opcode::OrAC => write!(f, "OrAC (OR A, C)"),
@@ -61,6 +69,7 @@ impl Display for Opcode {
             &Opcode::Di => write!(f, "Di (DI)"),
 
             &Opcode::DecA => write!(f, "DecA (DEC A)"),
+            &Opcode::DecC => write!(f, "DecC (DEC C)"),
 
             &Opcode::ExAfAfPrime => write!(f, "ExAfAfPrime (EX AF, AF')"),
 
@@ -76,10 +85,13 @@ impl Display for Opcode {
             &Opcode::LdAN => write!(f, "LdAN (LD A, n)"),
             &Opcode::LdAIndNN => write!(f, "LdAIndNN (LD A, (nn))"),
             &Opcode::LdBA => write!(f, "LdBA (LD B, A)"),
+            &Opcode::LdBB => write!(f, "LdBB (LD B, B)"),
             &Opcode::LdBE => write!(f, "LdBE (LD B, E)"),
             &Opcode::LdCA => write!(f, "LdCA (LD C, A)"),
+            &Opcode::LdCC => write!(f, "LdCC (LD C, C)"),
             &Opcode::LdIndNNA => write!(f, "LdIndNNA (LD (nn), A)"),
             &Opcode::LdHlNN => write!(f, "LdHlNN (LD HL, nn)"),
+            &Opcode::LdSpNN => write!(f, "LdSpNN (LD SP, nn)"),
 
             &Opcode::Rrca => write!(f, "Rrca (RRCA)"),
 
@@ -91,7 +103,7 @@ impl Display for Opcode {
 
 impl Opcode {
     pub fn from_halfword(halfword: u16) -> (Opcode, usize, bool) {
-        println!("from_halfword 0x{:04X}", halfword);
+        log!(Log::Debug, "from_halfword 0x{:04X}", halfword);
 
         match (halfword&0xFF00) >> 8 {
             0xCB => {
@@ -123,7 +135,7 @@ impl Opcode {
     }
 
     pub fn from_cb_prefix(byte: u8) -> (Opcode, usize) {
-        println!("from_prefixed 0x{:02X}", byte);
+        log!(Log::Debug, "from_prefixed 0x{:02X}", byte);
 
         // Different parts of the byte change what opcode ends up being decoded
         let x = (byte&0xC0) >> 6;
@@ -132,14 +144,14 @@ impl Opcode {
 
         match x {
             _ => {
-                println!("unrecognized cb-prefixed opcode 0x{:02X}", byte);
+                log!(Log::Debug, "unrecognized cb-prefixed opcode 0x{:02X}", byte);
                 (Opcode::Invalid, 1)
             }
         }
     }
 
     pub fn from_ed_prefix(byte: u8) -> (Opcode, usize) {
-        println!("from_prefixed 0x{:02X}", byte);
+        log!(Log::Debug, "from_prefixed 0x{:02X}", byte);
 
         // Different parts of the byte change what opcode ends up being decoded
         let x = (byte&0xC0) >> 6;
@@ -148,14 +160,14 @@ impl Opcode {
 
         match x {
             _ => {
-                println!("unrecognized ed-prefixed opcode 0x{:02X}", byte);
+                log!(Log::Debug, "unrecognized ed-prefixed opcode 0x{:02X}", byte);
                 (Opcode::Invalid, 1)
             }
         }
     }
 
     pub fn from_dd_prefix(byte: u8) -> (Opcode, usize) {
-        println!("from_prefixed 0x{:02X}", byte);
+        log!(Log::Debug, "from_prefixed 0x{:02X}", byte);
 
         // Different parts of the byte change what opcode ends up being decoded
         let x = (byte&0xC0) >> 6;
@@ -164,14 +176,14 @@ impl Opcode {
 
         match x {
             _ => {
-                println!("unrecognized dd-prefixed opcode 0x{:02X}", byte);
+                log!(Log::Debug, "unrecognized dd-prefixed opcode 0x{:02X}", byte);
                 (Opcode::Invalid, 1)
             }
         }
     }
 
     pub fn from_fd_prefix(byte: u8) -> (Opcode, usize) {
-        println!("from_prefixed 0x{:02X}", byte);
+        log!(Log::Debug, "from_prefixed 0x{:02X}", byte);
 
         // Different parts of the byte change what opcode ends up being decoded
         let x = (byte&0xC0) >> 6;
@@ -180,14 +192,14 @@ impl Opcode {
 
         match x {
             _ => {
-                println!("unrecognized fd-prefixed opcode 0x{:02X}", byte);
+                log!(Log::Debug, "unrecognized fd-prefixed opcode 0x{:02X}", byte);
                 (Opcode::Invalid, 1)
             }
         }
     }
 
     pub fn from_unprefixed(byte: u8) -> (Opcode, usize) {
-        println!("from_unprefixed 0x{:02X}", byte);
+        log!(Log::Debug, "from_unprefixed 0x{:02X}", byte);
 
         // Different parts of the byte change what opcode ends up being decoded
         // See http://z80.info/decoding.htm
@@ -198,7 +210,7 @@ impl Opcode {
         let p = y >> 1;
         let q = y % 2;
 
-        println!("x: {}, y: {}, z: {}\nq: {}, p: {}", x,y,z,q,p);
+        log!(Log::Debug, "x: {}, z: {}, y: {}\nq: {}, p: {}", x,z,y,q,p);
         
         match x {
             0 => {
@@ -236,6 +248,14 @@ impl Opcode {
                                 log!(Log::Instr, "LD HL, nn");
                                 return (Opcode::LdHlNN, 3);
                             }
+                            5 => {
+                                log!(Log::Instr, "ADD HL, BC");
+                                return (Opcode::AddHlBc, 1);
+                            }
+                            6 => {
+                                log!(Log::Instr, "LD SP, nn");
+                                return (Opcode::LdSpNN, 3);
+                            }
                             _ => {}
                         }
                     }
@@ -263,6 +283,10 @@ impl Opcode {
                     }
                     5 => {
                         match y {
+                            1 => {
+                                log!(Log::Instr, "DEC C");
+                                return (Opcode::DecC, 1);
+                            }
                             7 => {
                                 log!(Log::Instr, "DEC A");
                                 return (Opcode::DecA, 1);
@@ -296,8 +320,21 @@ impl Opcode {
 
             1 => {
                 match z {
+                    0 => {
+                        match y {
+                            0 => {
+                                log!(Log::Instr, "LD B, B");
+                                return (Opcode::LdBB, 1);
+                            }
+                            _ => {}
+                        }
+                    }
                     1 => {
                         match y {
+                            1 => {
+                                log!(Log::Instr, "LD C, C");
+                                return (Opcode::LdCC, 1);
+                            }
                             7 => {
                                 log!(Log::Instr, "LD A, C");
                                 return (Opcode::LdAC, 1);
@@ -420,7 +457,7 @@ impl Opcode {
             _ => {}
         }
 
-        println!("unrecognized unprefixed opcode 0x{:02X}", byte);
+        log!(Log::Debug, "unrecognized unprefixed opcode 0x{:02X}", byte);
         (Opcode::Invalid, 1)
     }
 }
