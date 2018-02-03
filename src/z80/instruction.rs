@@ -1,44 +1,123 @@
+use std::fmt;
+use std::fmt::{Display, Formatter};
 
 pub enum Opcode {
-    AddImmAcc,
+    AndAN,
+
+    OrAC,
+
+    XorAIndHl,
+
+    CpC,
 
     CallIfCarry,
+    Call,
+    Ret,
+
+    Di,
+
+    DecA,
 
     ExAfAfPrime,
 
-    JmpRelIfNz,
+    IncL,
 
+    Jp,
+
+    JrIfNc,
+    JrIfNz,
+    JrIfZ,
+
+    LdAC,
+    LdAN,
+    LdAIndNN,
+    LdBA,
     LdBE,
+    LdCA,
+    LdIndNNA,
+    LdHlNN,
+
+    Rrca,
 
     Nop,
-
     Invalid,
 }
 
+impl Display for Opcode {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            &Opcode::AndAN => write!(f, "AndAN (AND A, n)"),
+
+            &Opcode::OrAC => write!(f, "OrAC (OR A, C)"),
+
+            &Opcode::XorAIndHl => write!(f, "XorAIndHl (XOR A, (HL))"),
+
+            &Opcode::CpC => write!(f, "CpC (CP A, C)"),
+
+            &Opcode::CallIfCarry => write!(f, "CallIfCarry (CALL C, nn)"),
+            &Opcode::Call => write!(f, "Call (CALL nn)"),
+            &Opcode::Ret => write!(f, "Ret (RET)"),
+
+            &Opcode::Di => write!(f, "Di (DI)"),
+
+            &Opcode::DecA => write!(f, "DecA (DEC A)"),
+
+            &Opcode::ExAfAfPrime => write!(f, "ExAfAfPrime (EX AF, AF')"),
+
+            &Opcode::IncL => write!(f, "INC L"),
+
+            &Opcode::Jp => write!(f, "Jp (JP nn)"),
+
+            &Opcode::JrIfNc => write!(f, "JrIfNc (JR NC, d)"),
+            &Opcode::JrIfNz => write!(f, "JrIfNz (JR NZ, d)"),
+            &Opcode::JrIfZ => write!(f, "JrIfZ (JR Z, d)"),
+
+            &Opcode::LdAC => write!(f, "LdAC (LD A, C)"),
+            &Opcode::LdAN => write!(f, "LdAN (LD A, n)"),
+            &Opcode::LdAIndNN => write!(f, "LdAIndNN (LD A, (nn))"),
+            &Opcode::LdBA => write!(f, "LdBA (LD B, A)"),
+            &Opcode::LdBE => write!(f, "LdBE (LD B, E)"),
+            &Opcode::LdCA => write!(f, "LdCA (LD C, A)"),
+            &Opcode::LdIndNNA => write!(f, "LdIndNNA (LD (nn), A)"),
+            &Opcode::LdHlNN => write!(f, "LdHlNN (LD HL, nn)"),
+
+            &Opcode::Rrca => write!(f, "Rrca (RRCA)"),
+
+            &Opcode::Nop => write!(f, "Nop (NOP)"),
+            &Opcode::Invalid => write!(f, "Invalid"),
+        }
+    }
+}
+
 impl Opcode {
-    pub fn from_halfword(halfword: u16) -> (Opcode, usize) {
+    pub fn from_halfword(halfword: u16) -> (Opcode, usize, bool) {
         println!("from_halfword 0x{:04X}", halfword);
 
         match (halfword&0xFF00) >> 8 {
             0xCB => {
-                Opcode::from_cb_prefix((halfword&0xFF) as u8)
+                let (op, ip) = Opcode::from_cb_prefix((halfword&0xFF) as u8);
+                (op, ip, true)
             }
 
             0xED => {
-                Opcode::from_ed_prefix((halfword&0xFF) as u8)
+                let (op, ip) = Opcode::from_ed_prefix((halfword&0xFF) as u8);
+                (op, ip, true)
             }
 
             0xDD => {
-                Opcode::from_dd_prefix((halfword&0xFF) as u8)
+                let (op, ip) = Opcode::from_dd_prefix((halfword&0xFF) as u8);
+                (op, ip, true)
             }
             
             0xFD => {
-                Opcode::from_fd_prefix((halfword&0xFF) as u8)
+                let (op, ip) = Opcode::from_fd_prefix((halfword&0xFF) as u8);
+                (op, ip, true)
             }
 
             // Un-Prefixed Opcodes
             _ => {
-                Opcode::from_unprefixed(((halfword&0xFF00) >> 8) as u8)
+                let (op, ip) = Opcode::from_unprefixed(((halfword&0xFF00) >> 8) as u8);
+                (op, ip, false)
             }
         }
     }
@@ -111,6 +190,7 @@ impl Opcode {
         println!("from_unprefixed 0x{:02X}", byte);
 
         // Different parts of the byte change what opcode ends up being decoded
+        // See http://z80.info/decoding.htm
         let x = (byte&0xC0) >> 6;
         let y = (byte&0x38) >> 3;
         let z = byte&0x7;
@@ -136,8 +216,74 @@ impl Opcode {
                             }
 
                             4 => {
-                                log!(Log::Instr, "JR NZ, n");
-                                return (Opcode::JmpRelIfNz, 2);
+                                log!(Log::Instr, "JR NZ, d");
+                                return (Opcode::JrIfNz, 2);
+                            }
+                            5 => {
+                                log!(Log::Instr, "JR Z, d");
+                                return (Opcode::JrIfZ, 2);
+                            }
+                            6 => {
+                                log!(Log::Instr, "JR NC, d");
+                                return (Opcode::JrIfNc, 2);
+                            }
+                            _ => {}
+                        }
+                    }
+                    1 => {
+                        match y {
+                            4 => {
+                                log!(Log::Instr, "LD HL, nn");
+                                return (Opcode::LdHlNN, 3);
+                            }
+                            _ => {}
+                        }
+                    }
+                    2 => {
+                        match y {
+                            6 => {
+                                log!(Log::Instr, "LD (nn), A");
+                                return (Opcode::LdIndNNA, 3);
+                            }
+                            7 => {
+                                log!(Log::Instr, "LD A, (nn)");
+                                return (Opcode::LdAIndNN, 3);
+                            }
+                            _ => {}
+                        }
+                    }
+                    4 => {
+                        match y {
+                            5 => {
+                                log!(Log::Instr, "INC L");
+                                return (Opcode::IncL, 1);
+                            }
+                            _ => {}
+                        }
+                    }
+                    5 => {
+                        match y {
+                            7 => {
+                                log!(Log::Instr, "DEC A");
+                                return (Opcode::DecA, 1);
+                            }
+                            _ => {}
+                        }
+                    }
+                    6 => {
+                        match y {
+                            7 => {
+                                log!(Log::Instr, "LD A, n");
+                                return (Opcode::LdAN, 2);
+                            }
+                            _ => {}
+                        }
+                    }
+                    7 => {
+                        match y {
+                            1 => {
+                                log!(Log::Instr, "RRCA");
+                                return (Opcode::Rrca, 1);
                             }
                             _ => {}
                         }
@@ -150,9 +296,66 @@ impl Opcode {
 
             1 => {
                 match z {
-                    0...5 => {
-                        log!(Log::Instr, "LD B, E");
-                        return (Opcode::LdBE, 1);
+                    1 => {
+                        match y {
+                            7 => {
+                                log!(Log::Instr, "LD A, C");
+                                return (Opcode::LdAC, 1);
+                            }
+                            _ => {}
+                        }
+                    }
+                    3 => {
+                        match y {
+                            0 => {
+                                log!(Log::Instr, "LD B, E");
+                                return (Opcode::LdBE, 1);
+                            }
+                            _ => {}
+                        }
+                    }
+                    7 => {
+                        match y {
+                            0 => {
+                                log!(Log::Instr, "LA B, A");
+                                return (Opcode::LdBA, 1);
+                            }
+                            1 => {
+                                log!(Log::Instr, "LD C, A");
+                                return (Opcode::LdCA, 1);
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            
+            2 => {
+                match z {
+                    1 => {
+                        match y {
+                            6 => {
+                                log!(Log::Instr, "OR A, C");
+                                return (Opcode::OrAC, 1);
+                            }
+                            7 => {
+                                log!(Log::Instr, "CP C");
+                                return (Opcode::CpC, 1);
+                            }
+
+                            _ => {}
+                        }
+                    }
+                    6 => {
+                        match y {
+                            5 => {
+                                log!(Log::Instr, "XOR A, (HL)");
+                                return (Opcode::XorAIndHl, 1);
+                            }
+
+                            _ => {}
+                        }
                     }
                     _ => {}
                 }
@@ -160,16 +363,28 @@ impl Opcode {
 
             3 => {
                 match z {
+                    1 => {
+                        match y {
+                            1 => {
+                                log!(Log::Instr, "RET");
+                                return (Opcode::Ret, 1);
+                            }
+
+                            _ => {}
+                        }
+                    }
                     3 => {
                         match y {
                             0 => {
                                 log!(Log::Instr, "JP nn");
-                                return (Opcode::Invalid, 2);
+                                return (Opcode::Jp, 3);
+                            }
+                            6 => {
+                                log!(Log::Instr, "DI");
+                                return (Opcode::Di, 1);
                             }
 
-                            _ => {
-                                println!("unrecognized z-part of opcode 0b{:03b}", z);
-                            }
+                            _ => {}
                         }
                     }
 
@@ -183,13 +398,22 @@ impl Opcode {
                         }
                     }
 
-                    6 => {
-                        return (Opcode::AddImmAcc, 2);
+                    5 => {
+                        match y {
+                            1 => {
+                                log!(Log::Instr, "CALL nn");
+                                return (Opcode::Call, 3);
+                            }
+                            _ => {}
+                        }
                     }
 
-                    _ => {
-                        println!("unrecognized z-part of opcode 0b{:03b}", z);
+                    6 => {
+                        log!(Log::Instr, "AND A, n");
+                        return (Opcode::AndAN, 2);
                     }
+
+                    _ => {}
                 }
             }
 

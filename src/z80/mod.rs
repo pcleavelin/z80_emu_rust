@@ -35,7 +35,7 @@ impl Z80 {
     }
 
     pub fn hard_reset(&mut self) {
-        self.cpu.set_pc(0x10);
+        self.cpu.set_pc(0x100);
     }
 
     pub fn run(&mut self) {
